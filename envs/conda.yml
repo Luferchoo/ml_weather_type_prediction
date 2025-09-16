@@ -13,3 +13,4 @@ dependencies:
       - scikit-learn
       - matplotlib
       - azureml-mlflow
+      - azureml-core

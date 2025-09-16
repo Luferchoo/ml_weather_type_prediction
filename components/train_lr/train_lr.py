@@ -14,7 +14,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Activar autologging (no iniciar run manualmente)
-    mlflow.sklearn.autolog()
+    mlflow.sklearn.autolog(
+    log_models=True,
+    registered_model_name="weather-lr"   # cambia a "weather-rf" en train_rf.py
+    )
 
     # Carga de datos
     train_df = pd.read_csv(args.train_data)

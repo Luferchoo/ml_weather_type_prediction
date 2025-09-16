@@ -1,68 +1,95 @@
-import argparse
-import pandas as pd
-import json
-import os
-import tempfile
-import matplotlib.pyplot as plt
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score
-)
-import mlflow
-import mlflow.sklearn
+from azureml.core import Run
+import argparse, pandas as pd, json, os, tempfile, matplotlib.pyplot as plt
 
-if __name__ == "__main__":
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_curve,
+    precision_recall_curve,
+    auc,
+    confusion_matrix
+)
+from sklearn.preprocessing import label_binarize
+
+import mlflow, mlflow.sklearn
+
+def main():
+    # Contextos de Azure ML y MLflow
+    run = Run.get_context()
     mlflow.start_run()
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_data", type=str)
-    parser.add_argument("--predictions", type=str)
-    parser.add_argument("--metrics_out", type=str)
+    parser.add_argument("--test_data",   type=str, required=True)
+    parser.add_argument("--predictions", type=str, required=True)
+    parser.add_argument("--metrics_out", type=str, required=True)
     args = parser.parse_args()
 
-    # Activar autologging para evitar conflictos con Azure ML
+    # Autologging (solo para artefactos, no interfiere con run.log)
     mlflow.sklearn.autolog()
 
-    # Cargar datos
-    test_df = pd.read_csv(args.test_data)
-    predictions_df = pd.read_csv(args.predictions)
+    # 1) Carga de datos
+    df_test  = pd.read_csv(args.test_data)
+    df_pred  = pd.read_csv(args.predictions)
+    y_true   = df_test["Weather Type"]
+    y_pred   = df_pred["predictions"]
 
-    target_column = 'Weather Type'
-    if target_column not in test_df.columns:
-        raise ValueError(f"Target column '{target_column}' not found in the test data.")
+    # 2) Métricas globales
+    acc  = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred, average="macro")
+    rec  = recall_score(y_true, y_pred, average="macro")
+    f1   = f1_score(y_true, y_pred, average="macro")
 
-    y_true = test_df[target_column]
-    y_pred = predictions_df['predictions']
+    run.log("accuracy",        float(acc))
+    run.log("precision_macro", float(prec))
+    run.log("recall_macro",    float(rec))
+    run.log("f1_macro",        float(f1))
 
-    # Calcular métricas multiclase
-    accuracy = accuracy_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, average="macro")
-    recall = recall_score(y_true, y_pred, average="macro")
-    f1 = f1_score(y_true, y_pred, average="macro")
+    # 3) Coordenadas para ROC y PR (micro-average)
+    classes    = sorted(y_true.unique())
+    y_true_bin = label_binarize(y_true, classes=classes)
+    y_pred_bin = label_binarize(y_pred, classes=classes)
 
-    mlflow.log_metric("accuracy", accuracy)
-    mlflow.log_metric("precision_macro", precision)
-    mlflow.log_metric("recall_macro", recall)
-    mlflow.log_metric("f1_macro", f1)
+    fpr, tpr, _ = roc_curve(y_true_bin.ravel(), y_pred_bin.ravel())
+    roc_auc     = auc(fpr, tpr)
+    run.log("roc_auc_micro", float(roc_auc))
 
+    run.log_list("roc_fpr",  [float(x) for x in fpr])
+    run.log_list("roc_tpr",  [float(y) for y in tpr])
+
+    precision_vals, recall_vals, _ = precision_recall_curve(
+        y_true_bin.ravel(), y_pred_bin.ravel()
+    )
+    run.log_list("pr_recall",    [float(x) for x in recall_vals])
+    run.log_list("pr_precision", [float(x) for x in precision_vals])
+
+    # 4) Matriz de confusión como listas de métricas
+    #    Cada fila i corresponde a los counts de la clase true = classes[i]
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+    for i, cls in enumerate(classes):
+        key = f"cm_true_{cls}"
+        values = [float(v) for v in cm[i]]
+        run.log_list(key, values)
+
+    # 5) Guardar CSV/JSON via MLflow
     metrics = {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1
+        "accuracy": acc,
+        "precision_macro": prec,
+        "recall_macro": rec,
+        "f1_macro": f1,
+        "roc_auc_micro": roc_auc
     }
-
-    # Guardar métricas como CSV en la ruta oficial
-    metrics_df = pd.DataFrame([metrics])
-    metrics_df.to_csv(args.metrics_out, index=False)
-
-    # Crear carpeta temporal para artefactos adicionales
-    with tempfile.TemporaryDirectory() as temp_dir:
-        json_path = os.path.join(temp_dir, "metrics.json")
-
-        # Guardar JSON
+    pd.DataFrame([metrics]).to_csv(args.metrics_out, index=False)
+    with tempfile.TemporaryDirectory() as tmp:
+        json_path = os.path.join(tmp, "metrics.json")
         with open(json_path, "w") as f:
             json.dump(metrics, f, indent=4)
+        mlflow.log_artifact(args.metrics_out, artifact_path="metrics_csv")
+        mlflow.log_artifact(json_path,     artifact_path="metrics_json")
 
-        # Logging de artefactos en MLflow
-        mlflow.log_artifact(args.metrics_out, artifact_path="metrics")
-        mlflow.log_artifact(json_path, artifact_path="metrics_json")
     mlflow.end_run()
+    run.complete()
+
+if __name__ == "__main__":
+    main()
