@@ -1,0 +1,22 @@
+# components/score/score.yml
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: score
+display_name: Score (Weather)
+type: command
+inputs:
+ test_data:
+  type: uri_file
+ model:
+  type: uri_folder
+outputs:
+ predictions:
+  type: uri_file
+code: .
+environment:
+ image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+ conda_file: ../../envs/conda.yml
+command: >-
+ python score.py
+ --test_data ${{inputs.test_data}}
+ --model ${{inputs.model}}
+ --predictions_out ${{outputs.predictions}}

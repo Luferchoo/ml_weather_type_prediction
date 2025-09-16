@@ -1,0 +1,18 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: encode
+display_name: Encode (Weather)
+type: command
+inputs:
+ data:
+  type: uri_file
+outputs:
+ encoded:
+  type: uri_file
+code: .
+environment:
+ image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+ conda_file: ../../envs/conda.yml
+command: >-
+ python encode.py
+ --data ${{inputs.data}}
+ --out ${{outputs.encoded}}

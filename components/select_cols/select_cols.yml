@@ -1,0 +1,18 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: select_cols
+display_name: Select Columns (Weather)
+type: command
+inputs:
+ raw_data:
+  type: uri_file
+outputs:
+ selected:
+  type: uri_file
+code: .
+environment:
+ image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+ conda_file: ../../envs/conda.yml
+command: >-
+ python select_cols.py
+ --data ${{inputs.raw_data}}
+ --out ${{outputs.selected}}

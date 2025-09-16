@@ -1,0 +1,22 @@
+# components/eval/eval.yml
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: eval
+display_name: Evaluate (Weather)
+type: command
+inputs:
+ test_data:
+  type: uri_file
+ predictions:
+  type: uri_file
+outputs:
+ metrics:
+  type: uri_file
+code: .
+environment:
+ image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+ conda_file: ../../envs/conda.yml
+command: >-
+ python eval.py
+ --test_data ${{inputs.test_data}}
+ --predictions ${{inputs.predictions}}
+ --metrics_out ${{outputs.metrics}}
