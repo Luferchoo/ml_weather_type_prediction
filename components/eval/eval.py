@@ -11,6 +11,7 @@ import mlflow
 import mlflow.sklearn
 
 if __name__ == "__main__":
+    mlflow.start_run()
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_data", type=str)
     parser.add_argument("--predictions", type=str)
@@ -37,6 +38,11 @@ if __name__ == "__main__":
     recall = recall_score(y_true, y_pred, average="macro")
     f1 = f1_score(y_true, y_pred, average="macro")
 
+    mlflow.log_metric("accuracy", accuracy)
+    mlflow.log_metric("precision_macro", precision)
+    mlflow.log_metric("recall_macro", recall)
+    mlflow.log_metric("f1_macro", f1)
+
     metrics = {
         "accuracy": accuracy,
         "precision": precision,
@@ -59,3 +65,4 @@ if __name__ == "__main__":
         # Logging de artefactos en MLflow
         mlflow.log_artifact(args.metrics_out, artifact_path="metrics")
         mlflow.log_artifact(json_path, artifact_path="metrics_json")
+    mlflow.end_run()

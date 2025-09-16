@@ -2,18 +2,21 @@ import argparse
 import pandas as pd
 import joblib
 import os
-import mlflow  # Solo se añade MLflow para log_artifact
+import mlflow
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_data", type=str)
-    parser.add_argument("--model", type=str)
+    parser.add_argument("--test_data",       type=str)
+    parser.add_argument("--model",           type=str)
     parser.add_argument("--predictions_out", type=str)
     args = parser.parse_args()
 
+    # Inicia el MLflow Run
+    mlflow.start_run()
+
     test_df = pd.read_csv(args.test_data)
 
-    # Cargar el modelo desde archivo dentro del directorio
+    # Cargar el modelo
     model_path = os.path.join(args.model, "model.pkl")
     model = joblib.load(model_path)
 
@@ -27,6 +30,8 @@ if __name__ == "__main__":
     predictions_df = pd.DataFrame(predictions, columns=['predictions'])
     predictions_df.to_csv(args.predictions_out, index=False)
 
-    # Logging opcional del archivo de predicciones como artefacto
-    if os.path.exists(args.predictions_out):
-        mlflow.log_artifact(args.predictions_out, artifact_path="predictions")
+    # Log del CSV de predicciones
+    mlflow.log_artifact(args.predictions_out, artifact_path="predictions")
+
+    # Finaliza el MLflow Run
+    mlflow.end_run()
