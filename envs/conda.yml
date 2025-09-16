@@ -10,7 +10,8 @@ dependencies:
       - azure-identity
       - pandas
       - numpy
-      - scikit-learn
+      - scikit-learn==1.6.1    # Fijamos versión compatible
       - matplotlib
+      - seaborn
       - azureml-mlflow
       - azureml-core
