@@ -31,19 +31,29 @@ impute = load_component(source="./components/impute/impute.yml")
 encode = load_component(source="./components/encode/encode.yml")
 scale = load_component(source="./components/scale/scale.yml")
 split = load_component(source="./components/split/split.yml")
+
 train_lr = load_component(source="./components/train_lr/train_lr.yml")
+train_rf = load_component(source="./components/train_rf/train_rf.yml")
 score = load_component(source="./components/score/score.yml")
 evalc = load_component(source="./components/eval/eval.yml")
 
 # Definir pipeline
-@pipeline(compute="cpu-cluster", description="Weather pipeline: 9 steps")
-def weather_pipeline(raw: Input):
+
+# Nuevo pipeline que permite elegir el algoritmo
+@pipeline(compute="cpu-cluster", description="Weather pipeline: 9 steps with model choice")
+def weather_pipeline(raw: Input, model_type: str = "lr"):
     s = select_cols(raw_data=raw)
     imp = impute(data=s.outputs.selected)
     enc = encode(data=imp.outputs.imputed)
     sc = scale(data=enc.outputs.encoded)
     sp = split(data=sc.outputs.scaled)
-    tr = train_lr(train_data=sp.outputs.train_data)
+
+    # Selección de modelo
+    if model_type == "rf":
+        tr = train_rf(train_data=sp.outputs.train_data)
+    else:
+        tr = train_lr(train_data=sp.outputs.train_data)
+
     sc2 = score(test_data=sp.outputs.test_data, model=tr.outputs.model)
     ev = evalc(test_data=sp.outputs.test_data, predictions=sc2.outputs.predictions)
     return {
@@ -51,9 +61,10 @@ def weather_pipeline(raw: Input):
         "model": tr.outputs.model
     }
 
-# Crear instancia del pipeline
+# Crear instancia del pipeline (puedes cambiar model_type a "rf" para Random Forest)
 pipeline_job = weather_pipeline(
-    raw=Input(type="uri_file", path="azureml:weather_dataset:1")
+    raw=Input(type="uri_file", path="azureml:weather_dataset:1"),
+    model_type="lr"  # Cambia a "rf" para usar Random Forest
 )
 
 # Enviar el pipeline

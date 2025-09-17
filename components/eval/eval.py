@@ -14,11 +14,17 @@ import os
 
 def safe_log_table(run, name, df):
     try:
+        # Limita el tamaño de la tabla loggeada
+        if len(df) > 10:
+            df = df.head(10)
         payload = df.reset_index().to_dict(orient="list")
         run.log_table(name, payload)
     except Exception as e:
         try:
             flat = df.values.ravel().tolist()
+            # Limita la lista plana también
+            if len(flat) > 20:
+                flat = flat[:20]
             run.log_list(name + "_flat", list(map(int, flat)))
             run.log("log_table_fallback", 1)
         except Exception:
@@ -76,22 +82,29 @@ def main():
         y_true_bin = label_binarize(y_true, classes=wanted_classes)
         y_score = df_pred[wanted_classes].values
 
-        roc_auc_macro = roc_auc_score(
-            y_true_bin, y_score, average="macro", multi_class="ovr"
-        )
-        run.log("roc_auc_ovr_macro", float(roc_auc_macro))
+        # Solo calcular AUC si hay al menos dos clases presentes en y_true
+        if y_true_bin.sum(axis=0).nonzero()[0].size >= 2:
+            roc_auc_macro = roc_auc_score(
+                y_true_bin, y_score, average="macro", multi_class="ovr"
+            )
+            run.log("roc_auc_ovr_macro", float(roc_auc_macro))
 
-        for idx, cls in enumerate(wanted_classes):
-            fpr, tpr, _ = roc_curve(y_true_bin[:, idx], y_score[:, idx])
-            df_roc = pd.DataFrame({"fpr": fpr, "tpr": tpr})
-            safe_log_table(run, f"roc_curve_{cls}", df_roc)
+            for idx, cls in enumerate(wanted_classes):
+                if y_true_bin[:, idx].sum() > 0:
+                    fpr, tpr, _ = roc_curve(y_true_bin[:, idx], y_score[:, idx])
+                    df_roc = pd.DataFrame({"fpr": fpr, "tpr": tpr})
+                    # Solo loggear primeras 10 filas para evitar error de cuota
+                    safe_log_table(run, f"roc_curve_{cls}", df_roc.head(10))
 
-            csv_path = f"roc_curve_{cls}.csv"
-            df_roc.to_csv(csv_path, index=False)
-            mlflow.log_artifact(csv_path)
+                    csv_path = f"roc_curve_{cls}.csv"
+                    df_roc.to_csv(csv_path, index=False)
+                    mlflow.log_artifact(csv_path)
 
-            cls_auc = auc(fpr, tpr)
-            run.log(f"roc_auc_{cls}", float(cls_auc))
+                    cls_auc = auc(fpr, tpr)
+                    run.log(f"roc_auc_{cls}", float(cls_auc))
+        else:
+            run.log("roc_auc_ovr_macro", float("nan"))
+            run.log("roc_auc_warning", "No hay suficientes clases presentes para calcular AUC-ROC.")
     else:
         run.log("roc_auc_ovr_macro", float("nan"))
         run.log("roc_auc_warning", "No se encontraron columnas de probabilidades en predictions.csv")
@@ -126,6 +139,18 @@ def main():
     cm_csv_path = "confusion_matrix_table.csv"
     df_to_log.to_csv(cm_csv_path, index=False)
     mlflow.log_artifact(cm_csv_path)
+
+    # Muestra de resultados de clasificación
+    sample_results = pd.DataFrame({
+        "y_true": y_true,
+        "y_pred": y_pred
+    })
+    if all(col in df_pred.columns for col in wanted_classes):
+        for cls in wanted_classes:
+            sample_results[f"proba_{cls}"] = df_pred[cls]
+    sample_results_path = "sample_results.csv"
+    sample_results.head(20).to_csv(sample_results_path, index=False)
+    mlflow.log_artifact(sample_results_path)
 
     run.complete()
     mlflow.end_run()

@@ -51,8 +51,16 @@ if __name__ == "__main__":
     # Probabilidades si el modelo las soporta
     try:
         proba = model.predict_proba(X_test)
+        # Asegurar que todas las clases estén presentes como columnas
+        wanted_classes = ["Clear", "Cloudy", "Rain", "Storm"]
         class_names = list(model.classes_)
         proba_df = pd.DataFrame(proba, columns=class_names)
+        # Añadir columnas faltantes con ceros
+        for cls in wanted_classes:
+            if cls not in proba_df.columns:
+                proba_df[cls] = 0.0
+        # Reordenar columnas
+        proba_df = proba_df[wanted_classes]
         preds_df = pd.concat([preds_df, proba_df], axis=1)
     except AttributeError:
         print("El modelo no soporta predict_proba; no se guardarán probabilidades.")
