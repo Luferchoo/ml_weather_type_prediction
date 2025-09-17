@@ -1,18 +1,22 @@
+
 name: train_rf
 version: 1
 inputs:
   train_data:
     type: uri_file
-  model_out:
-    type: uri_folder
   register_model:
     type: string
     optional: true
 outputs:
-  model:
+  model_out:
     type: uri_folder
 code: .
 command: >-
-  python train_rf.py --train_data ${{inputs.train_data}} --model_out ${{outputs.model}} --register_model ${{inputs.register_model}}
-environment: ../../envs/conda.yml
+  python train_rf.py
+  --train_data ${{inputs.train_data}}
+  --model_out ${{outputs.model_out}}
+  $[[--register_model ${{inputs.register_model}}]]
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
 description: Entrena un modelo Random Forest para clasificación de clima.

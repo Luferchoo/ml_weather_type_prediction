@@ -1,19 +1,23 @@
-# components/train_lr/train_lr.yml
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
-name: train_lr
+name: train_lr_unique_20250917
 display_name: Train Logistic Regression (Weather)
 type: command
+version: 1
 inputs:
- train_data:
-  type: uri_file
+  train_data:
+    type: uri_file
+  register_model:
+    type: string
+    optional: true
 outputs:
- model:
-  type: uri_folder
+  model_out:
+    type: uri_folder
 code: .
 environment:
- image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
- conda_file: ../../envs/conda.yml
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
 command: >-
- python train_lr.py
- --train_data ${{inputs.train_data}}
- --model_out ${{outputs.model}}
+  python train_lr.py
+  --train_data ${{inputs.train_data}}
+  --model_out ${{outputs.model_out}}
+  $[[--register_model ${{inputs.register_model}}]]

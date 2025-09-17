@@ -48,23 +48,26 @@ def main():
     if "predictions" not in df_pred.columns:
         raise ValueError("No se encontró columna 'predictions' en predictions")
 
-    y_true = df_test["Weather Type"].astype(str).str.strip()
-    y_pred = df_pred["predictions"].astype(str).str.strip()
+    # Las etiquetas ahora son numéricas
+    y_true = df_test["Weather Type"].astype(int)
+    y_pred = df_pred["predictions"].astype(int)
 
-    wanted_classes = ["Clear", "Cloudy", "Rain", "Storm"]
+    # Obtener las clases únicas presentes en los datos
+    unique_classes = sorted(set(y_true) | set(y_pred))
+    wanted_classes = list(range(len(unique_classes)))
 
     # --- División por categoría ---
     vc_true = y_true.value_counts().reindex(wanted_classes, fill_value=0)
     vc_pred = y_pred.value_counts().reindex(wanted_classes, fill_value=0)
 
-    # Log como tablas en AzureML
-    safe_log_table(run, "class_distribution_true", vc_true.reset_index().rename(columns={"index": "class", 0: "count"}))
-    safe_log_table(run, "class_distribution_pred", vc_pred.reset_index().rename(columns={"index": "class", 0: "count"}))
+    # Log como tablas en AzureML con nombres numéricos
+    safe_log_table(run, "class_distribution_true", vc_true.reset_index().rename(columns={"index": "class_id", 0: "count"}))
+    safe_log_table(run, "class_distribution_pred", vc_pred.reset_index().rename(columns={"index": "class_id", 0: "count"}))
 
     # Log como métricas individuales
     for cls in wanted_classes:
-        run.log(f"true_count_{cls}", int(vc_true[cls]))
-        run.log(f"pred_count_{cls}", int(vc_pred[cls]))
+        run.log(f"true_count_class_{cls}", int(vc_true[cls]))
+        run.log(f"pred_count_class_{cls}", int(vc_pred[cls]))
 
     # Métricas principales
     acc = accuracy_score(y_true, y_pred)
@@ -115,9 +118,11 @@ def main():
 
     fig, ax = plt.subplots(figsize=(6, 5))
     sns.heatmap(df_cm.values, annot=True, fmt="d", cmap="Blues",
-                xticklabels=df_cm.columns, yticklabels=df_cm.index, ax=ax)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("True")
+                xticklabels=[f"Class {i}" for i in df_cm.columns],
+                yticklabels=[f"Class {i}" for i in df_cm.index],
+                ax=ax)
+    ax.set_xlabel("Predicted Class")
+    ax.set_ylabel("True Class")
     ax.set_title("Confusion Matrix")
     plt.tight_layout()
     try:

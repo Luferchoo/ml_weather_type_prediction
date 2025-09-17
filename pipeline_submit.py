@@ -1,5 +1,5 @@
 from azure.identity import DefaultAzureCredential
-from azure.ai.ml import MLClient, Input, dsl
+from azure.ai.ml import MLClient, Input, dsl, Output
 from azure.ai.ml.entities import PipelineJob, Data
 from azure.ai.ml.dsl import pipeline
 from azure.ai.ml import load_component
@@ -32,39 +32,44 @@ encode = load_component(source="./components/encode/encode.yml")
 scale = load_component(source="./components/scale/scale.yml")
 split = load_component(source="./components/split/split.yml")
 
-train_lr = load_component(source="./components/train_lr/train_lr.yml")
+train_lr_unique_20250917 = load_component(source="./components/train_lr/train_lr.yml")
 train_rf = load_component(source="./components/train_rf/train_rf.yml")
 score = load_component(source="./components/score/score.yml")
 evalc = load_component(source="./components/eval/eval.yml")
 
 # Definir pipeline
 
-# Nuevo pipeline que permite elegir el algoritmo
-@pipeline(compute="cpu-cluster", description="Weather pipeline: 9 steps with model choice")
-def weather_pipeline(raw: Input, model_type: str = "lr"):
+
+# Pipeline que ejecuta ambos modelos en paralelo
+@pipeline(compute="cpu-cluster", description="Weather pipeline: ambos modelos")
+def weather_pipeline_both(raw: Input):
     s = select_cols(raw_data=raw)
     imp = impute(data=s.outputs.selected)
     enc = encode(data=imp.outputs.imputed)
     sc = scale(data=enc.outputs.encoded)
     sp = split(data=sc.outputs.scaled)
 
-    # Selección de modelo
-    if model_type == "rf":
-        tr = train_rf(train_data=sp.outputs.train_data)
-    else:
-        tr = train_lr(train_data=sp.outputs.train_data)
+    # Logistic Regression
+    tr_lr = train_lr_unique_20250917(train_data=sp.outputs.train_data, register_model=None)
+    sc_lr = score(test_data=sp.outputs.test_data, model=tr_lr.outputs.model_out)
+    ev_lr = evalc(test_data=sp.outputs.test_data, predictions=sc_lr.outputs.predictions)
 
-    sc2 = score(test_data=sp.outputs.test_data, model=tr.outputs.model)
-    ev = evalc(test_data=sp.outputs.test_data, predictions=sc2.outputs.predictions)
+    # Random Forest
+    tr_rf = train_rf(train_data=sp.outputs.train_data)
+    sc_rf = score(test_data=sp.outputs.test_data, model=tr_rf.outputs.model_out)
+    ev_rf = evalc(test_data=sp.outputs.test_data, predictions=sc_rf.outputs.predictions)
+
     return {
-        "metrics": ev.outputs.metrics,
-        "model": tr.outputs.model
+        "metrics_lr": ev_lr.outputs.metrics,
+        "model_lr": tr_lr.outputs.model_out,
+        "metrics_rf": ev_rf.outputs.metrics,
+        "model_rf": tr_rf.outputs.model_out
     }
 
-# Crear instancia del pipeline (puedes cambiar model_type a "rf" para Random Forest)
-pipeline_job = weather_pipeline(
-    raw=Input(type="uri_file", path="azureml:weather_dataset:1"),
-    model_type="lr"  # Cambia a "rf" para usar Random Forest
+
+# Ejecuta ambos modelos:
+pipeline_job = weather_pipeline_both(
+    raw=Input(type="uri_file", path="azureml:weather_dataset:1")
 )
 
 # Enviar el pipeline
