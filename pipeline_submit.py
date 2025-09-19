@@ -36,13 +36,20 @@ train_lr_unique_20250917 = load_component(source="./components/train_lr/train_lr
 train_rf = load_component(source="./components/train_rf/train_rf.yml")
 score = load_component(source="./components/score/score.yml")
 evalc = load_component(source="./components/eval/eval.yml")
+publish_endpoint = load_component(source="./components/publish_endpoint/publish_endpoint.yml")
 
 # Definir pipeline
 
 
 # Pipeline que ejecuta ambos modelos en paralelo
-@pipeline(compute="cpu-cluster", description="Weather pipeline: ambos modelos")
-def weather_pipeline_both(raw: Input):
+@pipeline(
+    compute="cpu-cluster",
+    description="Weather pipeline: ambos modelos"
+)
+def weather_pipeline_both(raw: Input,
+                        subscription_id: str,
+                        resource_group_name: str,
+                        workspace_name: str):
     s = select_cols(raw_data=raw)
     imp = impute(data=s.outputs.selected)
     enc = encode(data=imp.outputs.imputed)
@@ -53,23 +60,42 @@ def weather_pipeline_both(raw: Input):
     tr_lr = train_lr_unique_20250917(train_data=sp.outputs.train_data, register_model=None)
     sc_lr = score(test_data=sp.outputs.test_data, model=tr_lr.outputs.model_out)
     ev_lr = evalc(test_data=sp.outputs.test_data, predictions=sc_lr.outputs.predictions)
+    pub_lr = publish_endpoint(
+        model_input_path=tr_lr.outputs.model_out,
+        endpoint_name="weather-lr-endpoint",
+        subscription_id=subscription_id,
+        resource_group_name=resource_group_name,
+        workspace_name=workspace_name
+    )
 
     # Random Forest
     tr_rf = train_rf(train_data=sp.outputs.train_data)
     sc_rf = score(test_data=sp.outputs.test_data, model=tr_rf.outputs.model_out)
     ev_rf = evalc(test_data=sp.outputs.test_data, predictions=sc_rf.outputs.predictions)
+    pub_rf = publish_endpoint(
+        model_input_path=tr_rf.outputs.model_out,
+        endpoint_name="weather-rf-endpoint",
+        subscription_id=subscription_id,
+        resource_group_name=resource_group_name,
+        workspace_name=workspace_name
+    )
 
     return {
         "metrics_lr": ev_lr.outputs.metrics,
         "model_lr": tr_lr.outputs.model_out,
+        "endpoint_lr": pub_lr.outputs.endpoint,
         "metrics_rf": ev_rf.outputs.metrics,
-        "model_rf": tr_rf.outputs.model_out
+        "model_rf": tr_rf.outputs.model_out,
+        "endpoint_rf": pub_rf.outputs.endpoint
     }
 
 
 # Ejecuta ambos modelos:
 pipeline_job = weather_pipeline_both(
-    raw=Input(type="uri_file", path="azureml:weather_dataset:1")
+    raw=Input(type="uri_file", path="azureml:weather_dataset:1"),
+    subscription_id=ml_client.subscription_id,
+    resource_group_name=ml_client.resource_group_name,
+    workspace_name=ml_client.workspace_name
 )
 
 # Enviar el pipeline

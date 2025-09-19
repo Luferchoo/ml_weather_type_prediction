@@ -1,0 +1,35 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: publish_endpoint
+display_name: Publish Endpoint (Weather)
+type: command
+inputs:
+  model_input_path:
+    type: uri_folder
+  endpoint_name:
+    type: string
+  experiment_name:
+    type: string
+    default: "weather-prediction-endpoint"
+  subscription_id:
+    type: string
+  resource_group_name:
+    type: string
+  workspace_name:
+    type: string
+outputs:
+  endpoint:
+    type: uri_folder
+code: .
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
+environment_variables: {}
+command: >-
+  python publish_endpoint.py
+  --model_input_path ${{inputs.model_input_path}}
+  --endpoint_name ${{inputs.endpoint_name}}
+  --experiment_name ${{inputs.experiment_name}}
+  --endpoint_output_path ${{outputs.endpoint}}
+  --subscription_id ${{inputs.subscription_id}}
+  --resource_group_name ${{inputs.resource_group_name}}
+  --workspace_name ${{inputs.workspace_name}}
