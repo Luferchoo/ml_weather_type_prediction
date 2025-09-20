@@ -38,6 +38,8 @@ score = load_component(source="./components/score/score.yml")
 evalc = load_component(source="./components/eval/eval.yml")
 publish_endpoint = load_component(source="./components/publish_endpoint/publish_endpoint.yml")
 language_service_sentiment = load_component(source="./components/language_service/language_service.yml")
+compare_models = load_component(source="./components/compare_models/compare_models.yml")
+select_best_model = load_component(source="./components/select_best_model/select_best_model.yml")
 
 # Definir pipeline
 
@@ -71,34 +73,43 @@ def weather_pipeline_both(raw: Input,
     # Logistic Regression
     tr_lr = train_lr_unique_20250917(train_data=sp.outputs.train_data, register_model=None)
     sc_lr = score(test_data=sp.outputs.test_data, model=tr_lr.outputs.model_out)
-    ev_lr = evalc(test_data=sp.outputs.test_data, predictions=sc_lr.outputs.predictions)
-    pub_lr = publish_endpoint(
-        model_input_path=tr_lr.outputs.model_out,
-        endpoint_name="weather-lr-endpoint",
-        subscription_id=subscription_id,
-        resource_group_name=resource_group_name,
-        workspace_name=workspace_name
-    )
-
+    # ev_lr = evalc(test_data=sp.outputs.test_data, predictions=sc_lr.outputs.predictions) # Eliminado
+    
     # Random Forest
     tr_rf = train_rf(train_data=sp.outputs.train_data)
     sc_rf = score(test_data=sp.outputs.test_data, model=tr_rf.outputs.model_out)
-    ev_rf = evalc(test_data=sp.outputs.test_data, predictions=sc_rf.outputs.predictions)
-    pub_rf = publish_endpoint(
-        model_input_path=tr_rf.outputs.model_out,
-        endpoint_name="weather-rf-endpoint",
+    # ev_rf = evalc(test_data=sp.outputs.test_data, predictions=sc_rf.outputs.predictions) # Eliminado
+
+    # Nuevo nodo para comparar modelos
+    compare_models_node = compare_models(
+        test_data=sp.outputs.test_data,
+        lr_predictions=sc_lr.outputs.predictions,
+        rf_predictions=sc_rf.outputs.predictions
+    )
+
+    # Nuevo nodo para seleccionar el mejor modelo
+    select_best_model_node = select_best_model(
+        best_model_name_in=compare_models_node.outputs.best_model_name_out,
+        lr_model_path=tr_lr.outputs.model_out,
+        rf_model_path=tr_rf.outputs.model_out
+    )
+
+    # Publicar el mejor modelo
+    pub_best_model = publish_endpoint(
+        model_input_path=select_best_model_node.outputs.selected_model_output,
+        endpoint_name="weather-best-model-endpoint", # Nuevo nombre para el endpoint
         subscription_id=subscription_id,
         resource_group_name=resource_group_name,
         workspace_name=workspace_name
     )
 
     return {
-        "metrics_lr": ev_lr.outputs.metrics,
         "model_lr": tr_lr.outputs.model_out,
-        "endpoint_lr": pub_lr.outputs.endpoint,
-        "metrics_rf": ev_rf.outputs.metrics,
         "model_rf": tr_rf.outputs.model_out,
-        "endpoint_rf": pub_rf.outputs.endpoint
+        "compare_metrics": compare_models_node.outputs.output_metrics,
+        "compare_report": compare_models_node.outputs.output_report,
+        "selected_model": select_best_model_node.outputs.selected_model_output,
+        "best_model_endpoint": pub_best_model.outputs.endpoint
     }
 
 

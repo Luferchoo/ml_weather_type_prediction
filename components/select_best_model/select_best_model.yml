@@ -1,0 +1,24 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: select_best_model
+display_name: Select Best Model (Weather)
+type: command
+inputs:
+  best_model_name_in:
+    type: uri_file
+  lr_model_path:
+    type: uri_folder
+  rf_model_path:
+    type: uri_folder
+outputs:
+  selected_model_output:
+    type: uri_folder
+code: .
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
+command: >-
+  python select_best_model.py
+  --best_model_name_in ${{inputs.best_model_name_in}}
+  --lr_model_path ${{inputs.lr_model_path}}
+  --rf_model_path ${{inputs.rf_model_path}}
+  --selected_model_output ${{outputs.selected_model_output}}

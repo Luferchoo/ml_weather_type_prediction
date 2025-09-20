@@ -1,0 +1,30 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: compare_models
+display_name: Compare ML Models (Weather)
+type: command
+inputs:
+  test_data:
+    type: uri_file
+  lr_predictions:
+    type: uri_file
+  rf_predictions:
+    type: uri_file
+outputs:
+  output_metrics:
+    type: uri_folder
+  output_report:
+    type: uri_folder
+  best_model_name_out:
+    type: uri_file
+code: .
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
+command: >-
+  python compare_models.py
+  --test_data ${{inputs.test_data}}
+  --lr_predictions ${{inputs.lr_predictions}}
+  --rf_predictions ${{inputs.rf_predictions}}
+  --output_metrics ${{outputs.output_metrics}}
+  --output_report ${{outputs.output_report}}
+  --best_model_name_out ${{outputs.best_model_name_out}}
