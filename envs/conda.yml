@@ -16,3 +16,5 @@ dependencies:
       - azureml-mlflow
       - azureml-core
       - azureml-defaults
+      - azure-ai-textanalytics==5.3.0 # Nueva dependencia para Azure Text Analytics
+      - azure-core==1.29.0 # Nueva dependencia para Azure Core

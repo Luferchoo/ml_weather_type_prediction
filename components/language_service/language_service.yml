@@ -1,0 +1,26 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: language_service_sentiment
+display_name: Sentiment Analysis (Language Service)
+type: command
+inputs:
+  input_data:
+    type: uri_file
+  text_column_name:
+    type: string
+    default: "Weather Type"
+  language_service_endpoint:
+    type: string
+  language_service_key:
+    type: string
+outputs:
+  output_data:
+    type: uri_file
+code: .
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest
+  conda_file: ../../envs/conda.yml
+environment_variables:
+  LANGUAGE_SERVICE_ENDPOINT: "${{inputs.language_service_endpoint}}"
+  LANGUAGE_SERVICE_KEY: "${{inputs.language_service_key}}"
+command: >-
+  python language_service.py --input_data ${{inputs.input_data}} --output_data ${{outputs.output_data}} --text_column_name "${{inputs.text_column_name}}" --language_service_endpoint "${{inputs.language_service_endpoint}}" --language_service_key "${{inputs.language_service_key}}"

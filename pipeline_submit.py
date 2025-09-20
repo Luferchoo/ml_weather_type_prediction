@@ -37,6 +37,7 @@ train_rf = load_component(source="./components/train_rf/train_rf.yml")
 score = load_component(source="./components/score/score.yml")
 evalc = load_component(source="./components/eval/eval.yml")
 publish_endpoint = load_component(source="./components/publish_endpoint/publish_endpoint.yml")
+language_service_sentiment = load_component(source="./components/language_service/language_service.yml")
 
 # Definir pipeline
 
@@ -49,12 +50,23 @@ publish_endpoint = load_component(source="./components/publish_endpoint/publish_
 def weather_pipeline_both(raw: Input,
                         subscription_id: str,
                         resource_group_name: str,
-                        workspace_name: str):
+                        workspace_name: str,
+                        language_service_endpoint: str,
+                        language_service_key: str): # Vuelvo a añadir estos parámetros
     s = select_cols(raw_data=raw)
     imp = impute(data=s.outputs.selected)
     enc = encode(data=imp.outputs.imputed)
     sc = scale(data=enc.outputs.encoded)
-    sp = split(data=sc.outputs.scaled)
+    
+    # Nuevo nodo para el Servicio de Lenguaje
+    ls_sentiment = language_service_sentiment(
+        input_data=sc.outputs.scaled,
+        text_column_name="Weather Type",  # Asegurando que se pase explícitamente
+        language_service_endpoint=language_service_endpoint, # Se pasa como argumento normal
+        language_service_key=language_service_key # Se pasa como argumento normal
+    )
+
+    sp = split(data=ls_sentiment.outputs.output_data)
 
     # Logistic Regression
     tr_lr = train_lr_unique_20250917(train_data=sp.outputs.train_data, register_model=None)
@@ -95,7 +107,9 @@ pipeline_job = weather_pipeline_both(
     raw=Input(type="uri_file", path="azureml:weather_dataset:1"),
     subscription_id=ml_client.subscription_id,
     resource_group_name=ml_client.resource_group_name,
-    workspace_name=ml_client.workspace_name
+    workspace_name=ml_client.workspace_name,
+    language_service_endpoint="https://weather-pipe.cognitiveservices.azure.com/", # Tu endpoint real
+    language_service_key="3Kc5R6BuEwRVcSQLY3aDhDAQU0cwgA8lky7rAk01KGIOW3ZF6jVmJQQJ99BIACLArgHXJ3w3AAAaACOGEt7v" # ¡Reemplaza esto con tu clave real!
 )
 
 # Enviar el pipeline

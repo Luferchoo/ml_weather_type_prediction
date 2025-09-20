@@ -1,6 +1,7 @@
 # split.py
 import argparse
 import pandas as pd
+import os # Importar os
 from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":
@@ -10,7 +11,9 @@ if __name__ == "__main__":
     parser.add_argument("--test_out", type=str)
     args = parser.parse_args()
 
-    df = pd.read_csv(args.data)
+    # Construir la ruta completa al archivo CSV dentro del directorio de entrada
+    input_csv_path = os.path.join(args.data, "processed_data_with_sentiment.csv")
+    df = pd.read_csv(input_csv_path)
     target_column = 'Weather Type' 
     #print(f"Columns in the dataset: {df.columns.tolist()}")
     if target_column not in df.columns:
